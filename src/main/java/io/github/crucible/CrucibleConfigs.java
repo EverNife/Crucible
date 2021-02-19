@@ -88,7 +88,7 @@ public class CrucibleConfigs extends YamlConfig {
     @Comment("Dump the heap in the event of a deadlock (helps to debug the deadlock)")
     public boolean cauldron_logging_dumpHeapOnDeadlock = false;
 
-    @Comment("Dump the the server thread on deadlock warning (helps to debug the deadlock)")
+    @Comment("Dump the the server thread on deadlock warning (delps to debug the deadlock)")
     public boolean cauldron_logging_dumpThreadsOnWarn = false;
 
     @Comment("Whether to log entity collision/count checks")
@@ -166,6 +166,12 @@ public class CrucibleConfigs extends YamlConfig {
 
     @Comment("Sets the server max tick time, it will break plugins and other things that requires a normal tickrate!")
     public int crucible_tickHandler_serverTickTime = 1000000000;
+
+    @Comments({"Allow Crucible to serialize NBT of ItemStacks on Bukkit YML Serialization!",
+            "This might help some plugins work properly with Modded Items when they have important NBT data.",
+            "This might as well break some other plugins that suppose there is no NBT Data being loaded on the default Bukkit deserialization"
+    })
+    public boolean crucible_itemStackNBTSerialize = false; //Disabled by default until https://github.com/CrucibleMC/Crucible/issues/56 is fixed
 
     @Comments({"Removes some restrictions and safety checks, we will not offer support for this setting and it may cause problems.",
             "Use it at your own risk!",
