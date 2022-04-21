@@ -83,8 +83,8 @@ def gitInfo(String key) {
 ext.mcVersion = "1.7.10"
 ext.forgeVersion = "1614"
 ext.revision = "1.0.7"
-ext.crucibleVersion = "5.2"
-if (gitInfo('branch') == "dev") {
+ext.crucibleVersion = "5.3"
+if (gitInfo('branch') != "master") {
     version = "${mcVersion}-${gitInfo('branch')}-${gitInfo('hash')}"
     ext.crucibleVersion = "${gitInfo('branch')}-${gitInfo('hash')}"
 } else {

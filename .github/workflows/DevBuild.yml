@@ -3,7 +3,7 @@ name: Dev Build
 on:
   push:
     branches:
-      - dev
+      - master-ever-2
 
 jobs:
   build:
@@ -49,7 +49,7 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "${{ env.BRANCH_NAME }}.${{ steps.commit_count.outputs.commit_count }}.${{ steps.sha_short.outputs.sha_short }}"
           prerelease: true
-          title: "DevBuild [${{ steps.commit_count.outputs.commit_count }}] - ${{ steps.sha_short.outputs.sha_short }}"
+          title: "DevBuild-Ever [${{ steps.commit_count.outputs.commit_count }}] - ${{ steps.sha_short.outputs.sha_short }}"
           files: |
             build/distributions/libraries.zip
             build/distributions/*-server.jar
