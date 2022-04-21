@@ -167,12 +167,6 @@ public class CrucibleConfigs extends YamlConfig {
     @Comment("Sets the server max tick time, it will break plugins and other things that requires a normal tickrate!")
     public int crucible_tickHandler_serverTickTime = 1000000000;
 
-    @Comments({"Allow Crucible to serialize NBT of ItemStacks on Bukkit YML Serialization!",
-            "This might help some plugins work properly with Modded Items when they have important NBT data.",
-            "This might as well break some other plugins that suppose there is no NBT Data being loaded on the default Bukkit deserialization"
-    })
-    public boolean crucible_itemStackNBTSerialize = true;
-
     @Comments({"Removes some restrictions and safety checks, we will not offer support for this setting and it may cause problems.",
             "Use it at your own risk!",
             "Currently disabled checks by this:",
