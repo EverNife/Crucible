@@ -46,7 +46,7 @@ jobs:
     - name: Rename JAR with dev version
       run: |
         for file in build/distributions/*-server.jar; do
-          mv "$file" "build/distributions/Crucible-1.7.10-staging-${{ steps.commit_count.outputs.count }}-dev-${{ steps.commit_count.outputs.count }}-server.jar"
+          mv "$file" "build/distributions/Crucible-1.7.10-staging-${{ steps.short_sha.outputs.sha }}-dev-${{ steps.commit_count.outputs.count }}-server.jar"
         done
 
     - name: Create GitHub pre-release
@@ -54,7 +54,7 @@ jobs:
       with:
         tag_name: staging-${{ steps.short_sha.outputs.sha }}
         prerelease: true
-        name: Staging ${{ steps.short_sha.outputs.sha }} | dev-${{ steps.commit_count.outputs.count }}
+        name: Staging Build ${{ steps.short_sha.outputs.sha }} | dev-${{ steps.commit_count.outputs.count }}
         body: |
           This is an automatic pre-release dev build.
 
