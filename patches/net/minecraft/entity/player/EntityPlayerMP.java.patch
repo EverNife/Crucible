@@ -13,10 +13,12 @@
  import java.util.Collection;
  import java.util.HashSet;
  import java.util.Iterator;
-@@ -106,24 +106,39 @@
+@@ -106,24 +106,41 @@
  import net.minecraftforge.event.entity.player.PlayerDropsEvent;
  import net.minecraftforge.event.world.ChunkWatchEvent;
  
++import io.github.crucible.CrucibleConfigs;
++
 +// CraftBukkit start
 +import net.minecraft.util.CombatTracker;
 +import net.minecraft.util.FoodStats;
@@ -57,7 +59,7 @@
      private EntityPlayer.EnumChatVisibility chatVisibility;
      private boolean chatColours = true;
      private long field_143005_bX = System.currentTimeMillis();
-@@ -131,6 +146,42 @@
+@@ -131,6 +148,46 @@
      public boolean isChangingQuantityOnly;
      public int ping;
      public boolean playerConqueredTheEnd;
@@ -74,6 +76,10 @@
 +    // KCauldron start
 +    public int hash = 0;
 +    // KCauldron end
++    // Crucible start - chunk send buffers, reused every tick instead of reallocated
++    private final ArrayList chunkSendBatch = new ArrayList();
++    private final ArrayList chunkSendTileEntities = new ArrayList();
++    // Crucible end
 +    // Spigot start
 +    public boolean collidesWithEntities = true;
 +
@@ -100,7 +106,7 @@
      private static final String __OBFID = "CL_00001440";
  
      public EntityPlayerMP(MinecraftServer p_i45285_1_, WorldServer p_i45285_2_, GameProfile p_i45285_3_, ItemInWorldManager p_i45285_4_)
-@@ -153,6 +204,16 @@
+@@ -153,6 +210,16 @@
          {
              this.setPosition(this.posX, this.posY + 1.0D, this.posZ);
          }
@@ -117,7 +123,7 @@
      }
  
      public void readEntityFromNBT(NBTTagCompound p_70037_1_)
-@@ -170,14 +231,57 @@
+@@ -170,14 +237,57 @@
                  this.theItemInWorldManager.setGameType(WorldSettings.GameType.getByID(p_70037_1_.getInteger("playerGameType")));
              }
          }
@@ -175,26 +181,106 @@
      public void addExperienceLevel(int p_82242_1_)
      {
          super.addExperienceLevel(p_82242_1_);
-@@ -240,7 +344,7 @@
-             ArrayList arraylist1 = new ArrayList();
-             Chunk chunk;
+@@ -235,56 +345,68 @@
+ 
+         if (!this.loadedChunks.isEmpty())
+         {
+-            ArrayList arraylist = new ArrayList();
+-            Iterator iterator1 = this.loadedChunks.iterator();
+-            ArrayList arraylist1 = new ArrayList();
+-            Chunk chunk;
++            // Crucible start - stream several bulk packets per tick instead of a single one.
++            // A zero or negative packet size would make the slicing loop below spin forever.
++            final int chunksPerPacket = Math.max(1, this.worldObj.getSpigotConfig().maxBulkChunk);   // Spigot // Cauldron
++            final int chunksPerTick = Math.max(1, CrucibleConfigs.configs.crucible_optimization_maxChunkSendsPerTick);
  
 -            while (iterator1.hasNext() && arraylist.size() < S26PacketMapChunkBulk.func_149258_c())
-+            while (iterator1.hasNext() && arraylist.size() < this.worldObj.getSpigotConfig().maxBulkChunk)   // Spigot // Cauldron
++            try
              {
-                 ChunkCoordIntPair chunkcoordintpair = (ChunkCoordIntPair)iterator1.next();
+-                ChunkCoordIntPair chunkcoordintpair = (ChunkCoordIntPair)iterator1.next();
++                Iterator iterator1 = this.loadedChunks.iterator();
  
-@@ -253,8 +357,7 @@
-                         if (chunk.func_150802_k())
+-                if (chunkcoordintpair != null)
++                while (iterator1.hasNext() && this.chunkSendBatch.size() < chunksPerTick)
+                 {
+-                    if (this.worldObj.blockExists(chunkcoordintpair.chunkXPos << 4, 0, chunkcoordintpair.chunkZPos << 4))
+-                    {
+-                        chunk = this.worldObj.getChunkFromChunkCoords(chunkcoordintpair.chunkXPos, chunkcoordintpair.chunkZPos);
++                    ChunkCoordIntPair chunkcoordintpair = (ChunkCoordIntPair)iterator1.next();
+ 
+-                        if (chunk.func_150802_k())
++                    if (chunkcoordintpair != null)
++                    {
++                        if (this.worldObj.blockExists(chunkcoordintpair.chunkXPos << 4, 0, chunkcoordintpair.chunkZPos << 4))
                          {
-                             arraylist.add(chunk);
+-                            arraylist.add(chunk);
 -                            arraylist1.addAll(((WorldServer)this.worldObj).func_147486_a(chunkcoordintpair.chunkXPos * 16, 0, chunkcoordintpair.chunkZPos * 16, chunkcoordintpair.chunkXPos * 16 + 15, 256, chunkcoordintpair.chunkZPos * 16 + 15));
 -                            //BugFix: 16 makes it load an extra chunk, which isn't associated with a player, which makes it not unload unless a player walks near it.
-+                            arraylist1.addAll(chunk.chunkTileEntityMap.values()); // CraftBukkit - Get tile entities directly from the chunk instead of the world
-                             iterator1.remove();
+-                            iterator1.remove();
++                            Chunk chunk = this.worldObj.getChunkFromChunkCoords(chunkcoordintpair.chunkXPos, chunkcoordintpair.chunkZPos);
++
++                            if (chunk.func_150802_k())
++                            {
++                                this.chunkSendBatch.add(chunk);
++
++                                this.chunkSendTileEntities.addAll(chunk.chunkTileEntityMap.values()); // CraftBukkit - Get tile entities directly from the chunk instead of the world
++
++                                iterator1.remove();
++                            }
                          }
                      }
-@@ -297,9 +400,16 @@
++                    else
++                    {
++                        iterator1.remove();
++                    }
+                 }
+-                else
++
++                // Nothing above may send or fire events: a listener that queues more chunks would
++                // hit the iterator we are still walking.
++                for (int from = 0; from < this.chunkSendBatch.size(); from += chunksPerPacket)
+                 {
+-                    iterator1.remove();
++                    int to = Math.min(from + chunksPerPacket, this.chunkSendBatch.size());
++                    this.playerNetServerHandler.sendPacket(new S26PacketMapChunkBulk(this.chunkSendBatch.subList(from, to)));
+                 }
+-            }
+ 
+-            if (!arraylist.isEmpty())
+-            {
+-                this.playerNetServerHandler.sendPacket(new S26PacketMapChunkBulk(arraylist));
+-                Iterator iterator2 = arraylist1.iterator();
+-
+-                while (iterator2.hasNext())
++                for (int i = 0; i < this.chunkSendTileEntities.size(); ++i)
+                 {
+-                    TileEntity tileentity = (TileEntity)iterator2.next();
+-                    this.func_147097_b(tileentity);
++                    this.func_147097_b((TileEntity)this.chunkSendTileEntities.get(i));
+                 }
+ 
+-                iterator2 = arraylist.iterator();
+-
+-                while (iterator2.hasNext())
++                for (int i = 0; i < this.chunkSendBatch.size(); ++i)
+                 {
+-                    chunk = (Chunk)iterator2.next();
++                    Chunk chunk = (Chunk)this.chunkSendBatch.get(i);
+                     this.getServerForPlayer().getEntityTracker().func_85172_a(this, chunk);
+                     MinecraftForge.EVENT_BUS.post(new ChunkWatchEvent.Watch(chunk.getChunkCoordIntPair(), this));
+                 }
+             }
++            finally
++            {
++                // These outlive the tick, so a throw must not leave chunks queued for a resend.
++                this.chunkSendBatch.clear();
++                this.chunkSendTileEntities.clear();
++            }
++            // Crucible end
+         }
+     }
+ 
+@@ -297,9 +419,16 @@
              for (int i = 0; i < this.inventory.getSizeInventory(); ++i)
              {
                  ItemStack itemstack = this.inventory.getStackInSlot(i);
@@ -213,7 +299,7 @@
                      Packet packet = ((ItemMapBase)itemstack.getItem()).func_150911_c(itemstack, this.worldObj, this);
  
                      if (packet != null)
-@@ -309,9 +419,10 @@
+@@ -309,9 +438,10 @@
                  }
              }
  
@@ -225,7 +311,7 @@
                  this.lastHealth = this.getHealth();
                  this.lastFoodLevel = this.foodStats.getFoodLevel();
                  this.wasHungry = this.foodStats.getSaturationLevel() == 0.0F;
-@@ -320,16 +431,18 @@
+@@ -320,16 +450,18 @@
              if (this.getHealth() + this.getAbsorptionAmount() != this.field_130068_bO)
              {
                  this.field_130068_bO = this.getHealth() + this.getAbsorptionAmount();
@@ -251,7 +337,7 @@
              if (this.experienceTotal != this.lastExperience)
              {
                  this.lastExperience = this.experienceTotal;
-@@ -340,6 +453,20 @@
+@@ -340,6 +472,20 @@
              {
                  this.func_147098_j();
              }
@@ -272,7 +358,7 @@
          }
          catch (Throwable throwable)
          {
-@@ -400,36 +527,85 @@
+@@ -400,36 +546,85 @@
          }
      }
  
@@ -367,7 +453,7 @@
              score.func_96648_a();
          }
  
-@@ -495,7 +671,8 @@
+@@ -495,7 +690,8 @@
  
      public boolean canAttackPlayer(EntityPlayer p_96122_1_)
      {
@@ -377,7 +463,7 @@
      }
  
      public void travelToDimension(int p_71027_1_)
-@@ -526,7 +703,10 @@
+@@ -526,7 +722,10 @@
                  this.triggerAchievement(AchievementList.portal);
              }
  
@@ -389,7 +475,7 @@
              this.lastExperience = -1;
              this.lastHealth = -1.0F;
              this.lastFoodLevel = -1;
-@@ -569,6 +749,11 @@
+@@ -569,6 +768,11 @@
  
      public void wakeUpPlayer(boolean p_70999_1_, boolean p_70999_2_, boolean p_70999_3_)
      {
@@ -401,7 +487,7 @@
          if (this.isPlayerSleeping())
          {
              this.getServerForPlayer().getEntityTracker().func_151248_b(this, new S0BPacketAnimation(this, 2));
-@@ -584,11 +769,27 @@
+@@ -584,11 +788,27 @@
  
      public void mountEntity(Entity p_70078_1_)
      {
@@ -432,7 +518,7 @@
      protected void updateFallState(double p_70064_1_, boolean p_70064_3_) {}
  
      public void handleFalling(double p_71122_1_, boolean p_71122_3_)
-@@ -610,29 +811,64 @@
+@@ -610,29 +830,64 @@
          this.currentWindowId = this.currentWindowId % 100 + 1;
      }
  
@@ -500,7 +586,7 @@
          this.openContainer.windowId = this.currentWindowId;
          this.openContainer.addCraftingToCrafters(this);
      }
-@@ -644,71 +880,150 @@
+@@ -644,71 +899,150 @@
              this.closeScreen();
          }
  
@@ -659,7 +745,7 @@
          this.openContainer.windowId = this.currentWindowId;
          this.openContainer.addCraftingToCrafters(this);
          InventoryMerchant inventorymerchant = ((ContainerMerchant)this.openContainer).getMerchantInventory();
-@@ -725,7 +1040,7 @@
+@@ -725,7 +1059,7 @@
                  merchantrecipelist.func_151391_a(packetbuffer);
                  this.playerNetServerHandler.sendPacket(new S3FPacketCustomPayload("MC|TrList", packetbuffer));
              }
@@ -668,7 +754,7 @@
              {
                  logger.error("Couldn\'t send trade list", ioexception);
              }
-@@ -738,6 +1053,17 @@
+@@ -738,6 +1072,17 @@
  
      public void displayGUIHorse(EntityHorse p_110298_1_, IInventory p_110298_2_)
      {
@@ -686,7 +772,7 @@
          if (this.openContainer != this.inventoryContainer)
          {
              this.closeScreen();
-@@ -745,7 +1071,7 @@
+@@ -745,7 +1090,7 @@
  
          this.getNextWindowId();
          this.playerNetServerHandler.sendPacket(new S2DPacketOpenWindow(this.currentWindowId, 11, p_110298_2_.getInventoryName(), p_110298_2_.getSizeInventory(), p_110298_2_.hasCustomInventoryName(), p_110298_1_.getEntityId()));
@@ -695,7 +781,7 @@
          this.openContainer.windowId = this.currentWindowId;
          this.openContainer.addCraftingToCrafters(this);
      }
-@@ -770,6 +1096,15 @@
+@@ -770,6 +1115,15 @@
      {
          this.playerNetServerHandler.sendPacket(new S30PacketWindowItems(p_71110_1_.windowId, p_71110_2_));
          this.playerNetServerHandler.sendPacket(new S2FPacketSetSlot(-1, -1, this.inventory.getItemStack()));
@@ -711,7 +797,7 @@
      }
  
      public void sendProgressBarUpdate(Container p_71112_1_, int p_71112_2_, int p_71112_3_)
-@@ -779,6 +1114,7 @@
+@@ -779,6 +1133,7 @@
  
      public void closeScreen()
      {
@@ -719,7 +805,7 @@
          this.playerNetServerHandler.sendPacket(new S2EPacketCloseWindow(this.openContainer.windowId));
          this.closeContainer();
      }
-@@ -853,8 +1189,19 @@
+@@ -853,8 +1208,19 @@
      public void setPlayerHealthUpdated()
      {
          this.lastHealth = -1.0E8F;
@@ -739,7 +825,7 @@
      public void addChatComponentMessage(IChatComponent p_146105_1_)
      {
          this.playerNetServerHandler.sendPacket(new S02PacketChat(p_146105_1_));
-@@ -882,7 +1229,24 @@
+@@ -882,7 +1248,24 @@
          this.lastExperience = -1;
          this.lastHealth = -1.0F;
          this.lastFoodLevel = -1;
@@ -764,7 +850,7 @@
      }
  
      protected void onNewPotionEffect(PotionEffect p_70670_1_)
-@@ -1037,6 +1401,114 @@
+@@ -1037,6 +1420,114 @@
          return this.field_143005_bX;
      }
  
