@@ -181,7 +181,7 @@
      public void addExperienceLevel(int p_82242_1_)
      {
          super.addExperienceLevel(p_82242_1_);
-@@ -235,56 +345,68 @@
+@@ -235,56 +345,76 @@
  
          if (!this.loadedChunks.isEmpty())
          {
@@ -223,7 +223,15 @@
 +                            {
 +                                this.chunkSendBatch.add(chunk);
 +
-+                                this.chunkSendTileEntities.addAll(chunk.chunkTileEntityMap.values()); // CraftBukkit - Get tile entities directly from the chunk instead of the world
++                                // CraftBukkit - Get tile entities directly from the chunk instead of the world
++                                for (Object te : chunk.chunkTileEntityMap.values())
++                                {
++                                    // The chunk map keeps invalidated entries until the world tick sweeps them.
++                                    if (!((TileEntity)te).isInvalid())
++                                    {
++                                        this.chunkSendTileEntities.add(te);
++                                    }
++                                }
 +
 +                                iterator1.remove();
 +                            }
@@ -280,7 +288,7 @@
          }
      }
  
-@@ -297,9 +419,16 @@
+@@ -297,9 +427,16 @@
              for (int i = 0; i < this.inventory.getSizeInventory(); ++i)
              {
                  ItemStack itemstack = this.inventory.getStackInSlot(i);
@@ -299,7 +307,7 @@
                      Packet packet = ((ItemMapBase)itemstack.getItem()).func_150911_c(itemstack, this.worldObj, this);
  
                      if (packet != null)
-@@ -309,9 +438,10 @@
+@@ -309,9 +446,10 @@
                  }
              }
  
@@ -311,7 +319,7 @@
                  this.lastHealth = this.getHealth();
                  this.lastFoodLevel = this.foodStats.getFoodLevel();
                  this.wasHungry = this.foodStats.getSaturationLevel() == 0.0F;
-@@ -320,16 +450,18 @@
+@@ -320,16 +458,18 @@
              if (this.getHealth() + this.getAbsorptionAmount() != this.field_130068_bO)
              {
                  this.field_130068_bO = this.getHealth() + this.getAbsorptionAmount();
@@ -337,7 +345,7 @@
              if (this.experienceTotal != this.lastExperience)
              {
                  this.lastExperience = this.experienceTotal;
-@@ -340,6 +472,20 @@
+@@ -340,6 +480,20 @@
              {
                  this.func_147098_j();
              }
@@ -358,7 +366,7 @@
          }
          catch (Throwable throwable)
          {
-@@ -400,36 +546,85 @@
+@@ -400,36 +554,85 @@
          }
      }
  
@@ -453,7 +461,7 @@
              score.func_96648_a();
          }
  
-@@ -495,7 +690,8 @@
+@@ -495,7 +698,8 @@
  
      public boolean canAttackPlayer(EntityPlayer p_96122_1_)
      {
@@ -463,7 +471,7 @@
      }
  
      public void travelToDimension(int p_71027_1_)
-@@ -526,7 +722,10 @@
+@@ -526,7 +730,10 @@
                  this.triggerAchievement(AchievementList.portal);
              }
  
@@ -475,7 +483,7 @@
              this.lastExperience = -1;
              this.lastHealth = -1.0F;
              this.lastFoodLevel = -1;
-@@ -569,6 +768,11 @@
+@@ -569,6 +776,11 @@
  
      public void wakeUpPlayer(boolean p_70999_1_, boolean p_70999_2_, boolean p_70999_3_)
      {
@@ -487,7 +495,7 @@
          if (this.isPlayerSleeping())
          {
              this.getServerForPlayer().getEntityTracker().func_151248_b(this, new S0BPacketAnimation(this, 2));
-@@ -584,11 +788,27 @@
+@@ -584,11 +796,27 @@
  
      public void mountEntity(Entity p_70078_1_)
      {
@@ -518,7 +526,7 @@
      protected void updateFallState(double p_70064_1_, boolean p_70064_3_) {}
  
      public void handleFalling(double p_71122_1_, boolean p_71122_3_)
-@@ -610,29 +830,64 @@
+@@ -610,29 +838,64 @@
          this.currentWindowId = this.currentWindowId % 100 + 1;
      }
  
@@ -586,7 +594,7 @@
          this.openContainer.windowId = this.currentWindowId;
          this.openContainer.addCraftingToCrafters(this);
      }
-@@ -644,71 +899,150 @@
+@@ -644,71 +907,150 @@
              this.closeScreen();
          }
  
@@ -745,7 +753,7 @@
          this.openContainer.windowId = this.currentWindowId;
          this.openContainer.addCraftingToCrafters(this);
          InventoryMerchant inventorymerchant = ((ContainerMerchant)this.openContainer).getMerchantInventory();
-@@ -725,7 +1059,7 @@
+@@ -725,7 +1067,7 @@
                  merchantrecipelist.func_151391_a(packetbuffer);
                  this.playerNetServerHandler.sendPacket(new S3FPacketCustomPayload("MC|TrList", packetbuffer));
              }
@@ -754,7 +762,7 @@
              {
                  logger.error("Couldn\'t send trade list", ioexception);
              }
-@@ -738,6 +1072,17 @@
+@@ -738,6 +1080,17 @@
  
      public void displayGUIHorse(EntityHorse p_110298_1_, IInventory p_110298_2_)
      {
@@ -772,7 +780,7 @@
          if (this.openContainer != this.inventoryContainer)
          {
              this.closeScreen();
-@@ -745,7 +1090,7 @@
+@@ -745,7 +1098,7 @@
  
          this.getNextWindowId();
          this.playerNetServerHandler.sendPacket(new S2DPacketOpenWindow(this.currentWindowId, 11, p_110298_2_.getInventoryName(), p_110298_2_.getSizeInventory(), p_110298_2_.hasCustomInventoryName(), p_110298_1_.getEntityId()));
@@ -781,7 +789,7 @@
          this.openContainer.windowId = this.currentWindowId;
          this.openContainer.addCraftingToCrafters(this);
      }
-@@ -770,6 +1115,15 @@
+@@ -770,6 +1123,15 @@
      {
          this.playerNetServerHandler.sendPacket(new S30PacketWindowItems(p_71110_1_.windowId, p_71110_2_));
          this.playerNetServerHandler.sendPacket(new S2FPacketSetSlot(-1, -1, this.inventory.getItemStack()));
@@ -797,7 +805,7 @@
      }
  
      public void sendProgressBarUpdate(Container p_71112_1_, int p_71112_2_, int p_71112_3_)
-@@ -779,6 +1133,7 @@
+@@ -779,6 +1141,7 @@
  
      public void closeScreen()
      {
@@ -805,7 +813,7 @@
          this.playerNetServerHandler.sendPacket(new S2EPacketCloseWindow(this.openContainer.windowId));
          this.closeContainer();
      }
-@@ -853,8 +1208,19 @@
+@@ -853,8 +1216,19 @@
      public void setPlayerHealthUpdated()
      {
          this.lastHealth = -1.0E8F;
@@ -825,7 +833,7 @@
      public void addChatComponentMessage(IChatComponent p_146105_1_)
      {
          this.playerNetServerHandler.sendPacket(new S02PacketChat(p_146105_1_));
-@@ -882,7 +1248,24 @@
+@@ -882,7 +1256,24 @@
          this.lastExperience = -1;
          this.lastHealth = -1.0F;
          this.lastFoodLevel = -1;
@@ -850,7 +858,7 @@
      }
  
      protected void onNewPotionEffect(PotionEffect p_70670_1_)
-@@ -1037,6 +1420,114 @@
+@@ -1037,6 +1428,114 @@
          return this.field_143005_bX;
      }
  
