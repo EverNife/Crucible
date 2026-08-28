@@ -1,9 +1,9 @@
-name: Pre-release build
+name: EverNife pre-release build
 
 on:
   push:
     branches:
-      - staging
+      - staging-evernife
 
 permissions:
   contents: write
@@ -46,22 +46,21 @@ jobs:
     - name: Rename JAR with dev version
       run: |
         for file in build/distributions/*-server.jar; do
-          mv "$file" "build/distributions/Crucible-1.7.10-staging-${{ steps.short_sha.outputs.sha }}-dev-${{ steps.commit_count.outputs.count }}-server.jar"
+          mv "$file" "build/distributions/Crucible-1.7.10-staging-evernife-${{ steps.short_sha.outputs.sha }}-ever-dev-${{ steps.commit_count.outputs.count }}-server.jar"
         done
 
     - name: Create GitHub pre-release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: staging-${{ steps.short_sha.outputs.sha }}
+        tag_name: staging-evernife-${{ steps.short_sha.outputs.sha }}
         prerelease: true
-        name: Staging Build ${{ steps.short_sha.outputs.sha }} | dev-${{ steps.commit_count.outputs.count }}
+        name: EverNife Staging Build ${{ steps.short_sha.outputs.sha }} | ever-dev-${{ steps.commit_count.outputs.count }}
         body: |
-          This is an automatic pre-release dev build.
+          This is an automatic pre-release build from the EverNife fork's staging-evernife branch.
+          It carries changes that are not in CrucibleMC/Crucible yet, so it is not the upstream build.
           
           Commit: ${{ github.sha }}
-          Dev build number: dev-${{ steps.commit_count.outputs.count }}
-          
-          This is the most up-to-date build available.
+          Build number: ever-dev-${{ steps.commit_count.outputs.count }}
         files: |
           build/distributions/*
           java9args.txt
